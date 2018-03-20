@@ -31,7 +31,7 @@
 \medskip
 \medskip
 \begin{center}
-{\Large Version 3.3 \\}
+{\Large Version 3.4 \\}
 \end{center}
 \bigskip
 \vskip 2.5cm
@@ -46,7 +46,7 @@ USA}
 \vfill
 \bigskip
 \begin{center}
-{\Large April 2016\\}
+{\Large August 2017\\}
 \end{center}
 \vfill
 \end{titlepage}
@@ -1723,7 +1723,10 @@ is then opened by the application program with READONLY access.
 Programs can read the input file from the 'stdin' file stream if a dash
 character ('-') is given as the filename. Files can also be opened over
 the network using FTP or HTTP protocols by supplying the appropriate URL
-as the filename.
+as the filename.  The HTTPS protocol is also supported if the CFITSIO
+build includes the libcurl library.  (If the CFITSIO 'configure' script
+finds a usable libcurl library on your system, it will automatically be 
+included in the build.)
 
 The input file can be modified in various ways to create a virtual file
 (usually stored in memory) that is then opened by the application
@@ -5169,7 +5172,7 @@ These functions allow for the creation and manipulation of FITS HDU
 Groups, as defined in "A Hierarchical Grouping Convention for FITS" by
 Jennings, Pence, Folk and Schlesinger:
 
-http://fits.gsfc.nasa.gov/group.html
+https://fits.gsfc.nasa.gov/registry/grouping/grouping.pdf
 
 A group is a
 collection of HDUs whose association is defined by a {\it grouping
@@ -5381,7 +5384,7 @@ twice.
 
 \begin{verbatim}
   int fits_open_group / ffgtop
-      (fitsfile *mfptr, int group, > fitsfile **gfptr, int *status)
+      (fitsfile *mfptr, int grpid, > fitsfile **gfptr, int *status)
 \end{verbatim}
 
 \begin{description}
@@ -5406,7 +5409,7 @@ twice.
 
 \begin{description}
 \item[1 ] Return the number of member HDUs in a grouping table gfptr. The number
-    member HDUs is just the NAXIS2 value (number of rows) of the grouping
+    of member HDUs is just the NAXIS2 value (number of rows) of the grouping
    table. \label{ffgtnm}
 \end{description}
 
@@ -5488,7 +5491,7 @@ twice.
 
 \begin{verbatim}
   int fits_remove_member / ffgmrm
-      (fitsfile *fptr, long member, int rmopt, > int *status)
+      (fitsfile *gfptr, long member, int rmopt, > int *status)
 \end{verbatim}
 
 \chapter{ Specialized CFITSIO Interface Routines }
@@ -5749,6 +5752,47 @@ the 'exists' parameter will have 1 of the 4 following values:
       (fitsfile *fptr, 0, > int *status)
 
       (Note:  The second argument must be 0).
+\end{verbatim}
+
+\begin{description}
+\item[10 ] Wrapper function for global initialization of the libcurl library used
+   when accessing files with the HTTPS protocol.  If an HTTPS file transfer is to
+   be performed, it is recommended that you call this once near the start of your program
+   before any file\_open calls, and before creating any threads.  This is NOT THREAD-SAFE.
+   Returns 0 if initialization succeeded.
+   A corresponding call to fits\_cleanup\_https should be made later.
+  \label{ffihtps}
+\end{description}
+
+\begin{verbatim}
+  int fits_init_https / ffihtps
+      ()
+\end{verbatim}
+
+\begin{description}
+\item[11 ] Wrapper function for global cleanup of the libcurl library used when
+   accessing files with the HTTPS protocol.  This is meant to be used in combination 
+   with fits\_init\_https, and should be called after all HTTPS file accessing is completed,
+   and after all threads are completed.  This is NOT THREAD-SAFE.  Returns 0 upon successful
+   cleanup.
+  \label{ffchtps}
+\end{description}
+
+\begin{verbatim}
+   int fits_cleanup_https / ffchtps
+       ()
+\end{verbatim}
+
+\begin{description}
+\item[12 ] Toggle the verbosity of the libcurl library diagnostic output when
+   accessing files with the HTTPS protocol.  'flag' = 1 turns the output
+   on, 0 turns it off (the default).  This is NOT THREAD-SAFE.
+  \label{ffvhtps}
+\end{description}
+
+\begin{verbatim}
+   void fits_verbose_https / ffvhtps
+        (int flag)
 \end{verbatim}
 
 
@@ -7219,7 +7263,7 @@ be read by converting them on the fly into virtual FITS images.
 
 \item
 FITS files on the Internet can be read (and sometimes written) using the FTP,
-HTTP, or ROOT protocols.
+HTTP, HTTPS, or ROOT protocols.
 
 \item
 FITS files can be piped between tasks on the stdin and stdout streams.
@@ -7420,6 +7464,9 @@ CFITSIO to read and/or write the file.  Currently supported types are
                    supports username:password just like the ftp driver.
                    Proxy HTTP servers are supported using the http_proxy
                    environment variable (see following note).
+       https://  - a readonly file accessed with the HTTPS protocol.  This
+                   is available only if CFITSIO was built with the libcurl
+                   library (see the following note).
       stream://  - special driver to read an input FITS file from the stdin
                    stream, and/or write an output FITS file to the stdout
 		   stream.  This driver is fragile and has limited
@@ -7451,6 +7498,45 @@ For example
 will cause CFITSIO to use port 3128 on the heasarc proxy server whenever
 reading a FITS file with HTTP.
 
+\subsection{Notes about HTTPS file access}
+
+CFITSIO depends upon the availability of the libcurl library in order to perform 
+HTTPS file access.  (This should be the development version of the library, as
+it contains the curl.h header file required by the CFITSIO code.)   The CFITSIO
+'configure' script will search for this library on your system, and if it finds it 
+it will automatically be incorporated into the build.  
+
+Note that if you have this library package on your system, you will also have the 'curl-config'
+executable.  You can run the 'curl-config' executable with various options to learn
+more about the features of your libcurl installation.
+
+If the CFITSIO 'configure' succeeded in finding a usable libcurl, you will see the flag
+'-DCFITSIO\_HAVE\_CURL=1' in the CFITSIO Makefile and in the compilation output.  
+If 'configure' is unable to find a usable libcurl, CFITSIO will still build 
+but it won't have HTTPS capability.
+
+The libcurl package is normally included as part of Xcode on Macs.  However on Linux platforms you 
+may need to manually install it. This can be easily done on Ubuntu Linux using
+the 'apt get' command to retrieve the libcurl4-openssl-dev or the libcurl4-gnutls-dev packages.
+
+When accessing a file with HTTPS, the default CFITSIO behavior is to attempt
+to verify both the host name and the SSL certificate.  If it cannot, it will still 
+perform the file access but will issue a warning to the terminal window.
+
+The user can override this behavior to force CFITSIO to only allow file transfers
+when the host name and SSL certificate have been successfully verified.  This is
+done by setting the CFITSIO\_VERIFY\_HTTPS environment variable to 'True'. ie. in a
+csh shell:
+
+setenv CFITSIO\_VERIFY\_HTTPS True
+
+the default setting for this is 'False'.
+
+CFITSIO has 3 functions which apply specifically to HTTPS access:  fits\_init\_https, 
+fits\_cleanup\_https, and fits\_verbose\_https. It is recommended that you call the 
+init and cleanup functions near the beginning and end of your program respectively. 
+For more information about these functions, please see the 'FITS File Access Routines'
+section in the preceding chapter ('Specialized CFITSIO Interface Routines'). 
 
 \subsection{Notes about the stream filetype driver}
 
@@ -9472,18 +9558,18 @@ existing keyword.
 \section{HIERARCH Convention for Extended Keyword Names}
 
 CFITSIO supports the HIERARCH keyword convention which allows keyword
-names that are longer then 8 characters and may contain the full range
-of printable ASCII text characters.  This convention
-was developed at the European Southern Observatory (ESO)  to support
-hierarchical FITS keyword such as:
+names that are longer than 8 characters.  This convention
+was developed at the European Southern Observatory (ESO) and allows characters
+consisting of digits 0-9, upper case letters A-Z, the dash '-' and the underscore '_'.
+The components of hierarchical keywords are separated by a single ASCII space charater.
+For instance:
 
 \begin{verbatim}
 HIERARCH ESO INS FOCU POS = -0.00002500 / Focus position
 \end{verbatim}
 Basically, this convention uses the FITS keyword 'HIERARCH' to indicate
 that this convention is being used, then the actual keyword name
-({\tt'ESO INS FOCU POS'} in this example) begins in column 10 and can
-contain any printable ASCII text characters, including spaces.  The
+({\tt'ESO INS FOCU POS'} in this example) begins in column 10.  The
 equals sign marks the end of the keyword name and is followed by the
 usual value and comment fields just as in standard FITS keywords.
 Further details of this convention are described at
@@ -9492,14 +9578,14 @@ and in Section 4.4 of the ESO Data Interface Control Document that
 is linked to from
 http://archive.eso.org/cms/tools-documentation/eso-data-interface-control.html.
 
-This convention allows a much broader range of keyword names
+This convention allows a broader range of keyword names
 than is allowed by the FITS Standard.  Here are more examples
 of such keywords:
 
 \begin{verbatim}
-HIERARCH LongKeyword = 47.5 / Keyword has > 8 characters, and mixed case
-HIERARCH XTE$TEMP = 98.6 / Keyword contains the '$' character
-HIERARCH Earth is a star = F / Keyword contains embedded spaces
+HIERARCH LONGKEYWORD = 47.5 / Keyword has > 8 characters
+HIERARCH LONG-KEY_WORD2 = 52.3 / Long keyword with hyphen, underscore and digit
+HIERARCH EARTH IS A STAR = F / Keyword contains embedded spaces
 \end{verbatim}
 CFITSIO will transparently read and write these keywords, so application
 programs do not in general need to know anything about the specific
@@ -9517,12 +9603,8 @@ about 40 characters, which leaves enough room for most keyword values.
 CFITSIO returns an error if there is not enough room for both the
 keyword name and the keyword value on the 80-character card, except for
 string-valued keywords which are simply truncated so that the closing
-quote character falls in column 80.  In the current implementation,
-CFITSIO preserves the case of the letters when writing the keyword
-name, but it is case-insensitive when reading or searching for a
-keyword.  The current implementation allows any ASCII text character
-(ASCII 32 to ASCII 126) in the keyword name except for the '='
-character.  A space is also required on either side of the equal sign.
+quote character falls in column 80. A space is also required on either 
+side of the equal sign.
 
 
 \section{Tile-Compressed Image Format}
@@ -9825,6 +9907,7 @@ fits\_calculator\_rng     & \pageref{ffcalcrng} \\
 fits\_calc\_binning & \pageref{calcbinning} \\
 fits\_calc\_rows    & \pageref{ffcrow} \\
 fits\_change\_group  & \pageref{ffgtch} \\
+fits\_cleanup\_https & \pageref{ffchtps} \\
 fits\_clear\_errmark  & \pageref{ffpmrk} \\
 fits\_clear\_errmsg   & \pageref{ffcmsg} \\
 fits\_close\_file     & \pageref{ffclos} \\
@@ -9848,10 +9931,10 @@ fits\_copy\_rows &   \pageref{ffcprw} \\
 fits\_create\_diskfile    & \pageref{ffinit} \\
 fits\_create\_file    & \pageref{ffinit} \\
 fits\_create\_group  & \pageref{ffgtcr} \\
-fits\_create\_hdu     & \pageref{ffcrhd} \\
 
 \end{tabular}
 \begin{tabular}{lr}
+fits\_create\_hdu     & \pageref{ffcrhd} \\
 fits\_create\_img     & \pageref{ffcrim} \\
 fits\_create\_memfile    & \pageref{ffimem} \\
 fits\_create\_tbl     & \pageref{ffcrtb} \\
@@ -9883,9 +9966,9 @@ fits\_get\_bcolparms  & \pageref{ffgbcl} \\
 fits\_get\_chksum     & \pageref{ffgcks} \\
 fits\_get\_col\_display\_width    & \pageref{ffgcdw} \\
 fits\_get\_colname    & \pageref{ffgcnn} \\
-fits\_get\_colnum     & \pageref{ffgcno} \\
 \end{tabular}
 \begin{tabular}{lr}
+fits\_get\_colnum     & \pageref{ffgcno} \\
 fits\_get\_coltype    & \pageref{ffgtcl} \\
 fits\_get\_compression\_type & \pageref{ffgetcomp} \\
 fits\_get\_eqcoltype    & \pageref{ffgtcl} \\
@@ -9917,10 +10000,11 @@ fits\_get\_system\_time  & \pageref{ffdt2s} \\
 fits\_get\_tile\_dim     & \pageref{ffgetcomp} \\
 fits\_get\_tbcol      & \pageref{ffgabc} \\
 fits\_get\_version    & \pageref{ffvers} \\
-fits\_hdr2str         & \pageref{ffhdr2str}, \pageref{hdr2str} \\
 \end{tabular}
 \newpage
 \begin{tabular}{lr}
+fits\_hdr2str         & \pageref{ffhdr2str}, \pageref{hdr2str} \\
+fits\_init\_https  & \pageref{ffihtps} \\
 fits\_insert\_atbl    & \pageref{ffitab} \\
 fits\_insert\_btbl    & \pageref{ffibin} \\
 fits\_insert\_col   & \pageref{fficol} \\
@@ -9967,10 +10051,10 @@ fits\_parse\_template & \pageref{ffgthd} \\
 fits\_parse\_value    & \pageref{ffpsvc} \\
 fits\_pix\_to\_world & \pageref{ffwldp} \\
 fits\_read\_2d\_TYP      & \pageref{ffg2dx} \\
-fits\_read\_3d\_TYP      & \pageref{ffg3dx} \\
-fits\_read\_atblhdr      & \pageref{ffghtb} \\
 \end{tabular}
 \begin{tabular}{lr}
+fits\_read\_3d\_TYP      & \pageref{ffg3dx} \\
+fits\_read\_atblhdr      & \pageref{ffghtb} \\
 fits\_read\_btblhdr      & \pageref{ffghbn} \\
 fits\_read\_card         & \pageref{ffgcrd} \\
 fits\_read\_col        & \pageref{ffgcv} \\
@@ -10017,10 +10101,10 @@ fits\_report\_error   & \pageref{ffrprt} \\
 fits\_resize\_img     & \pageref{ffrsim} \\
 fits\_rms\_float      & \pageref{imageRMS} \\
 fits\_rms\_short      & \pageref{imageRMS} \\
-fits\_select\_rows  & \pageref{ffsrow} \\
-fits\_set\_atblnull   & \pageref{ffsnul} \\
 \end{tabular}
 \begin{tabular}{lr}
+fits\_select\_rows  & \pageref{ffsrow} \\
+fits\_set\_atblnull   & \pageref{ffsnul} \\
 fits\_set\_bscale     & \pageref{ffpscl} \\
 fits\_set\_btblnull   & \pageref{fftnul} \\
 fits\_set\_compression\_type  & \pageref{ffsetcomp} \\
@@ -10048,6 +10132,7 @@ fits\_update\_key\_null   & \pageref{ffukyu} \\
 fits\_update\_key\_TYP    & \pageref{ffukyx} \\
 fits\_uppercase      & \pageref{ffupch} \\
 fits\_url\_type      & \pageref{ffurlt} \\
+fits\_verbose\_https  & \pageref{ffvhtps} \\
 fits\_verify\_chksum  & \pageref{ffvcks} \\
 fits\_verify\_group  & \pageref{ffgtvf} \\
 fits\_world\_to\_pix & \pageref{ffxypx} \\
@@ -10066,12 +10151,12 @@ fits\_write\_comment      & \pageref{ffpcom} \\
 fits\_write\_date         & \pageref{ffpdat} \\
 fits\_write\_descript  & \pageref{ffpdes} \\
 fits\_write\_errmark   & \pageref{ffpmrk} \\
-fits\_write\_errmsg   & \pageref{ffpmsg} \\
-fits\_write\_ext        & \pageref{ffgextn} \\
-fits\_write\_exthdr        & \pageref{ffphps} \\
 \end{tabular}
 \newpage
 \begin{tabular}{lr}
+fits\_write\_errmsg   & \pageref{ffpmsg} \\
+fits\_write\_ext        & \pageref{ffgextn} \\
+fits\_write\_exthdr        & \pageref{ffphps} \\
 fits\_write\_grphdr       & \pageref{ffphpr} \\
 fits\_write\_grppar\_TYP & \pageref{ffpgpx} \\
 fits\_write\_hdu       & \pageref{ffwrhdu} \\
@@ -10109,6 +10194,7 @@ ffasfm    & \pageref{ffasfm} \\
 ffbnfm   & \pageref{ffbnfm} \\
 ffcalc     & \pageref{ffcalc} \\
 ffcalc\_rng     & \pageref{ffcalcrng} \\
+ffchtps    & \pageref{ffchtps} \\
 ffclos     & \pageref{ffclos} \\
 ffcmph & \pageref{ffcmph} \\
 ffcmps    & \pageref{ffcmps} \\
@@ -10152,9 +10238,9 @@ ffflmd      & \pageref{ffflmd} \\
 ffflnm      & \pageref{ffflnm} \\
 ffflsh     & \pageref{ffflus} \\
 ffflus     & \pageref{ffflus} \\
-fffree     & \pageref{ffgkls},  \pageref{ffhdr2str} \\
 \end{tabular}
 \begin{tabular}{lr}
+fffree     & \pageref{ffgkls},  \pageref{ffhdr2str} \\
 fffrow    & \pageref{fffrow} \\
 ffg2d\_      & \pageref{ffg2dx} \\
 ffg3d\_      & \pageref{ffg3dx} \\
@@ -10202,10 +10288,10 @@ ffgkyt   & \pageref{ffgkyt} \\
 ffgky\_      & \pageref{ffgkyx} \\
 ffgmcp   & \pageref{ffgmcp} \\
 ffgmng  & \pageref{ffgmng} \\
-ffgmop    & \pageref{ffgmop} \\
 
 \end{tabular}
 \begin{tabular}{lr}
+ffgmop    & \pageref{ffgmop} \\
 ffgmrm   & \pageref{ffgmrm} \\
 ffgmsg    & \pageref{ffgmsg} \\
 ffgmtf  & \pageref{ffgmtf} \\
@@ -10249,15 +10335,16 @@ ffibin    & \pageref{ffibin} \\
 fficls  & \pageref{fficls} \\
 fficol   & \pageref{fficol} \\
 ffifile  & \pageref{ffiurl} \\
+ffihtps  & \pageref{ffihtps} \\
 ffiimg     & \pageref{ffiimg} \\
 ffikls    & \pageref{ffikyx} \\
 ffikyu   & \pageref{ffikyu} \\
-ffiky\_    & \pageref{ffikyx} \\
-ffimem  & \pageref{ffimem} \\
 
 \end{tabular}
 \begin{tabular}{lr}
 
+ffiky\_    & \pageref{ffikyx} \\
+ffimem  & \pageref{ffimem} \\
 ffinit  & \pageref{ffinit} \\
 ffinttyp    & \pageref{ffinttyp} \\
 ffiopn & \pageref{ffopen} \\
@@ -10304,12 +10391,12 @@ ffphpr       & \pageref{ffphpr} \\
 ffphps       & \pageref{ffphps} \\
 ffphtb      & \pageref{ffphtb} \\
 ffpkls  & \pageref{ffpkls} \\
-ffpkn\_     & \pageref{ffpknx} \\
-ffpktp & \pageref{ffpktp} \\
 
 \end{tabular}
 \begin{tabular}{lr}
 
+ffpkn\_     & \pageref{ffpknx} \\
+ffpktp & \pageref{ffpktp} \\
 ffpky          & \pageref{ffpky} \\
 ffpkyt   & \pageref{ffpkyt} \\
 ffpkyu     & \pageref{ffpkyu} \\
@@ -10356,14 +10443,14 @@ fftopn & \pageref{ffopen} \\
 fftplt & \pageref{fftplt} \\
 fftrec    & \pageref{fftrec} \\
 fftscl     & \pageref{fftscl} \\
-ffucrd       & \pageref{ffucrd} \\
-ffukls    & \pageref{ffukyx} \\
 
 
 \end{tabular}
 \newpage
 \begin{tabular}{lr}
 
+ffucrd       & \pageref{ffucrd} \\
+ffukls    & \pageref{ffukyx} \\
 ffuky        & \pageref{ffuky} \\
 ffukyu   & \pageref{ffukyu} \\
 ffuky\_    & \pageref{ffukyx} \\
@@ -10372,6 +10459,7 @@ ffupck  & \pageref{ffupck} \\
 ffurlt  & \pageref{ffurlt} \\
 ffvcks  & \pageref{ffvcks} \\
 ffvers    & \pageref{ffvers} \\
+ffvhtps  & \pageref{ffvhtps} \\
 ffwldp & \pageref{ffwldp} \\
 ffwrhdu  & \pageref{ffwrhdu} \\
 ffxypx & \pageref{ffxypx} \\
