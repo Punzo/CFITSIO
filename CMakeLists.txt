@@ -4,7 +4,7 @@
 SET(CMAKE_LEGACY_CYGWIN_WIN32 0)
 
 PROJECT(CFITSIO)
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.0)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.4)
 
 # Allow @rpath token in target install name on Macs.
 # See "cmake --help-policy CMP0042" for more information.
