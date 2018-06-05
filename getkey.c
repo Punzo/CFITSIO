@@ -285,7 +285,7 @@ int ffgky( fitsfile *fptr,     /* I - FITS file pointer        */
   Reads a keyword value with the datatype specified by the 2nd argument.
 */
 {
-    long longval;
+    LONGLONG longval;
     double doubleval;
 
     if (*status > 0)           /* inherit input status value if > 0 */
@@ -297,7 +297,7 @@ int ffgky( fitsfile *fptr,     /* I - FITS file pointer        */
     }
     else if (datatype == TBYTE)
     {
-        if (ffgkyj(fptr, keyname, &longval, comm, status) <= 0)
+        if (ffgkyjj(fptr, keyname, &longval, comm, status) <= 0)
         {
             if (longval > UCHAR_MAX || longval < 0)
                 *status = NUM_OVERFLOW;
@@ -307,7 +307,7 @@ int ffgky( fitsfile *fptr,     /* I - FITS file pointer        */
     }
     else if (datatype == TSBYTE)
     {
-        if (ffgkyj(fptr, keyname, &longval, comm, status) <= 0)
+        if (ffgkyjj(fptr, keyname, &longval, comm, status) <= 0)
         {
             if (longval > 127 || longval < -128)
                 *status = NUM_OVERFLOW;
@@ -317,7 +317,7 @@ int ffgky( fitsfile *fptr,     /* I - FITS file pointer        */
     }
     else if (datatype == TUSHORT)
     {
-        if (ffgkyj(fptr, keyname, &longval, comm, status) <= 0)
+        if (ffgkyjj(fptr, keyname, &longval, comm, status) <= 0)
         {
             if (longval > (long) USHRT_MAX || longval < 0)
                 *status = NUM_OVERFLOW;
@@ -327,7 +327,7 @@ int ffgky( fitsfile *fptr,     /* I - FITS file pointer        */
     }
     else if (datatype == TSHORT)
     {
-        if (ffgkyj(fptr, keyname, &longval, comm, status) <= 0)
+        if (ffgkyjj(fptr, keyname, &longval, comm, status) <= 0)
         {
             if (longval > SHRT_MAX || longval < SHRT_MIN)
                 *status = NUM_OVERFLOW;
@@ -337,7 +337,7 @@ int ffgky( fitsfile *fptr,     /* I - FITS file pointer        */
     }
     else if (datatype == TUINT)
     {
-        if (ffgkyj(fptr, keyname, &longval, comm, status) <= 0)
+        if (ffgkyjj(fptr, keyname, &longval, comm, status) <= 0)
         {
             if (longval > (long) UINT_MAX || longval < 0)
                 *status = NUM_OVERFLOW;
@@ -347,7 +347,7 @@ int ffgky( fitsfile *fptr,     /* I - FITS file pointer        */
     }
     else if (datatype == TINT)
     {
-        if (ffgkyj(fptr, keyname, &longval, comm, status) <= 0)
+        if (ffgkyjj(fptr, keyname, &longval, comm, status) <= 0)
         {
             if (longval > INT_MAX || longval < INT_MIN)
                 *status = NUM_OVERFLOW;
@@ -361,17 +361,28 @@ int ffgky( fitsfile *fptr,     /* I - FITS file pointer        */
     }
     else if (datatype == TULONG)
     {
-        if (ffgkyd(fptr, keyname, &doubleval, comm, status) <= 0)
+        if (ffgkyjj(fptr, keyname, &longval, comm, status) <= 0)
         {
-            if (doubleval > (double) ULONG_MAX || doubleval < 0)
+            if (longval > ULONG_MAX || longval < 0)
                 *status = NUM_OVERFLOW;
             else
-                 *(unsigned long *) value = (unsigned long) doubleval;
+                 *(unsigned long *) value = longval;
         }
     }
     else if (datatype == TLONG)
     {
+        if (ffgkyjj(fptr, keyname, &longval, comm, status) <= 0)
+        {
+            if (longval > LONG_MAX || longval < LONG_MIN)
+                *status = NUM_OVERFLOW;
+            else
+                *(int *) value = longval;
+        }
         ffgkyj(fptr, keyname, (long *) value, comm, status);
+    }
+    else if (datatype == TULONGLONG)
+    {
+        ffgkyujj(fptr, keyname, (ULONGLONG *) value, comm, status);
     }
     else if (datatype == TLONGLONG)
     {
@@ -1173,7 +1184,7 @@ int ffgkyjj( fitsfile *fptr,     /* I - FITS file pointer         */
             int  *status)       /* IO - error status             */
 /*
   Read (get) the named keyword, returning the value and comment.
-  The value will be implicitly converted to a (long) integer if it not
+  The value will be implicitly converted to a (LONGLONG) integer if it not
   already of this datatype.  The comment may be up to 69 characters long.
 */
 {
@@ -1184,6 +1195,28 @@ int ffgkyjj( fitsfile *fptr,     /* I - FITS file pointer         */
 
     ffgkey(fptr, keyname, valstring, comm, status);  /* read the keyword */
     ffc2j(valstring, value, status);   /* convert string to value */
+
+    return(*status);
+}
+/*--------------------------------------------------------------------------*/
+int ffgkyujj( fitsfile *fptr,     /* I - FITS file pointer         */
+            const char *keyname,      /* I - name of keyword to read   */
+            ULONGLONG *value,    /* O - keyword value             */
+            char *comm,         /* O - keyword comment           */
+            int  *status)       /* IO - error status             */
+/*
+  Read (get) the named keyword, returning the value and comment.
+  The value will be implicitly converted to a (ULONGLONG) integer if it not
+  already of this datatype.  The comment may be up to 69 characters long.
+*/
+{
+    char valstring[FLEN_VALUE];
+
+    if (*status > 0)
+        return(*status);
+
+    ffgkey(fptr, keyname, valstring, comm, status);  /* read the keyword */
+    ffc2uj(valstring, value, status);   /* convert string to value */
 
     return(*status);
 }
@@ -1451,6 +1484,10 @@ int ffgkns( fitsfile *fptr,     /* I - FITS file pointer                    */
           equalssign = strchr(card, '=');
 	  if (equalssign == 0) continue;  /* keyword has no value */
 
+          if (equalssign - card - lenroot > 7)
+          {
+             return (*status=BAD_KEYCHAR);
+          }
           strncat(keyindex, &card[lenroot], equalssign - card  - lenroot);  /*  copy suffix  */
           tstatus = 0;
           if (ffc2ii(keyindex, &ival, &tstatus) <= 0)     /*  test suffix  */
@@ -1528,6 +1565,10 @@ int ffgknl( fitsfile *fptr,     /* I - FITS file pointer                    */
           equalssign = strchr(card, '=');
 	  if (equalssign == 0) continue;  /* keyword has no value */
 
+          if (equalssign - card - lenroot > 7)
+          {
+             return (*status=BAD_KEYCHAR);
+          }
           strncat(keyindex, &card[lenroot], equalssign - card  - lenroot);  /*  copy suffix  */
 
           tstatus = 0;
@@ -1605,6 +1646,10 @@ int ffgknj( fitsfile *fptr,     /* I - FITS file pointer                    */
           equalssign = strchr(card, '=');
 	  if (equalssign == 0) continue;  /* keyword has no value */
 
+          if (equalssign - card - lenroot > 7)
+          {
+             return (*status=BAD_KEYCHAR);
+          }
           strncat(keyindex, &card[lenroot], equalssign - card  - lenroot);  /*  copy suffix  */
 
           tstatus = 0;
@@ -1682,6 +1727,10 @@ int ffgknjj( fitsfile *fptr,    /* I - FITS file pointer                    */
           equalssign = strchr(card, '=');
 	  if (equalssign == 0) continue;  /* keyword has no value */
 
+          if (equalssign - card - lenroot > 7)
+          {
+             return (*status=BAD_KEYCHAR);
+          }
           strncat(keyindex, &card[lenroot], equalssign - card  - lenroot);  /*  copy suffix  */
 
           tstatus = 0;
@@ -1759,6 +1808,10 @@ int ffgkne( fitsfile *fptr,     /* I - FITS file pointer                    */
           equalssign = strchr(card, '=');
 	  if (equalssign == 0) continue;  /* keyword has no value */
 
+          if (equalssign - card - lenroot > 7)
+          {
+             return (*status=BAD_KEYCHAR);
+          }
           strncat(keyindex, &card[lenroot], equalssign - card  - lenroot);  /*  copy suffix  */
 
           tstatus = 0;
@@ -1835,6 +1888,10 @@ int ffgknd( fitsfile *fptr,     /* I - FITS file pointer                    */
           equalssign = strchr(card, '=');
 	  if (equalssign == 0) continue;  /* keyword has no value */
 
+          if (equalssign - card - lenroot > 7)
+          {
+             return (*status=BAD_KEYCHAR);
+          }
           strncat(keyindex, &card[lenroot], equalssign - card  - lenroot);  /*  copy suffix  */
           tstatus = 0;
           if (ffc2ii(keyindex, &ival, &tstatus) <= 0)      /*  test suffix */

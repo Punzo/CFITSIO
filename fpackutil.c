@@ -63,16 +63,23 @@ void fp_abort_output (fitsfile *infptr, fitsfile *outfptr, int stat)
 	int status = 0, hdunum;
 	char  msg[SZ_STR];
 
-	fits_file_name(infptr, tempfilename, &status);
-	fits_get_hdu_num(infptr, &hdunum);
-	
-        fits_close_file (infptr, &status);
+        if (infptr)
+        {
+	   fits_file_name(infptr, tempfilename, &status);
+	   fits_get_hdu_num(infptr, &hdunum);
 
-	snprintf(msg, SZ_STR,"Error processing file: %s\n", tempfilename);
-	fp_msg (msg);
-	snprintf(msg, SZ_STR,"  in HDU number %d\n", hdunum);
-	fp_msg (msg);
+           fits_close_file (infptr, &status);
 
+	   snprintf(msg, SZ_STR,"Error processing file: %s\n", tempfilename);
+	   fp_msg (msg);
+	   snprintf(msg, SZ_STR,"  in HDU number %d\n", hdunum);
+	   fp_msg (msg);
+        }
+        else
+        {
+           snprintf(msg, SZ_STR,"Error: Unable to process input file\n");
+           fp_msg(msg);
+        }
 	fits_report_error (stderr, stat);
 
 	if (outfptr) {
@@ -129,6 +136,13 @@ int fp_tmpnam(char *suffix, char *rootname, char *tmpnam)
 
         for (ii = 0; ii < maxtry; ii++) {
 		if (fp_access(tmpnam)) break;  /* good, the file does not exist */
+                if (strlen(tmpnam) > SZ_STR-2)
+                {
+		   fp_msg ("\nCould not create temporary file name:\n");
+		   fp_msg (tmpnam);
+		   fp_msg ("\n");
+		   exit (-1);
+                }
 		strcat(tmpnam, "x");  /* append an x to the name, and try again */
 	}
 
@@ -203,7 +217,8 @@ int fp_list (int argc, char *argv[], fpstate fpvar)
 	}
 
 	for (iarg=fpvar.firstfile; iarg < argc; iarg++) {
-	    strncpy (infits, argv[iarg], SZ_STR);
+	    strncpy (infits, argv[iarg], SZ_STR-1);
+            infits[SZ_STR-1]=0;
 
 	    if (strchr (infits, '[') || strchr (infits, ']')) {
 		fp_msg ("Error: section/extension notation not supported: ");
@@ -472,6 +487,11 @@ int fp_preflight (int argc, char *argv[], int unpack, fpstate *fpptr)
 
 	      /* if gzipping the output, make sure .gz file doesn't exist */
 	      if (fpptr->do_gzip_file) {
+                        if (strlen(outfits)+3 > SZ_STR-1)
+                        {
+		            fp_msg ("Error: output file name too long:\n "); fp_msg (outfits);
+		            fp_msg ("\n "); fp_noop (); exit (-1);
+                        }
 	                strcat(outfits, ".gz");
 	                if (fp_access (outfits) == 0) {
 		            fp_msg ("Error: output file already exists:\n "); fp_msg (outfits);
@@ -486,6 +506,11 @@ int fp_preflight (int argc, char *argv[], int unpack, fpstate *fpptr)
 	      /* check that input file  exists */
 	      if (infits[0] != '-') {  /* if not reading from stdin stream */
 	        if (fp_access (infits) != 0) {  /* if not, then check if */
+                    if (strlen(infits)+3 > SZ_STR-1)
+                    {
+		        fp_msg ("Error: input file name too long:\n "); fp_msg (infits);
+		        fp_msg ("\n "); fp_noop (); exit (-1);
+                    }
 		    strcat(infits, ".gz");     /* a gzipped version exsits */
 	            if (fp_access (infits) != 0) {
                         namelen = strlen(infits);
@@ -553,7 +578,8 @@ int fp_loop (int argc, char *argv[], int unpack, fpstate fpvar)
 {
 	char	infits[SZ_STR], outfits[SZ_STR];
 	char	temp[SZ_STR], answer[30];
-	int	iarg, islossless, namelen, iraf_infile = 0, status = 0, ifail;
+        char    valchar[]="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.#()+,-_@[]/^{}";
+	int	ichar=0, outlen=0, iarg, islossless, namelen, iraf_infile = 0, status = 0, ifail;
         
 	if (fpvar.initialized != FP_INIT_MAGIC) {
 	    fp_msg ("Error: internal initialization error\n"); exit (-1);
@@ -598,6 +624,7 @@ int fp_loop (int argc, char *argv[], int unpack, fpstate fpvar)
           islossless = 1;
 
 	  strncpy (infits, argv[iarg], SZ_STR - 1);
+          infits[SZ_STR-1]=0;
 
           if (unpack) {
 	  	/* ********** This section applies to funpack ************ */
@@ -678,6 +705,7 @@ int fp_loop (int argc, char *argv[], int unpack, fpstate fpvar)
 	  }
 
           strncpy(temp, outfits, SZ_STR-1);
+          temp[SZ_STR-1]=0;
 
 	  if (infits[0] != '-') {  /* if not reading from stdin stream */
              if (!strcmp(infits, outfits) ) {  /* are input and output names the same? */
@@ -828,6 +856,20 @@ int fp_loop (int argc, char *argv[], int unpack, fpstate fpvar)
 
 	    if (fpvar.do_gzip_file) {       /* gzip the output file */
 		strcpy(temp, "gzip -1 ");
+                outlen = strlen(outfits);
+                if (outlen + 8 > SZ_STR-1)
+                {
+                   fp_msg("\nError: Output file name is too long.\n");
+                   exit(-1);
+                }
+                for (ichar=0; ichar < outlen; ++ichar)
+                {
+                   if (!strchr(valchar, outfits[ichar]))
+                   {
+                      fp_msg("\n Error: Invalid characters in output file name.\n");
+                      exit(-1);
+                   }
+                }                
 		strcat(temp,outfits);
                 system(temp);
 	        strcat(outfits, ".gz");    /* only possibible with funpack */
@@ -1197,11 +1239,12 @@ int fp_test (char *infits, char *outfits, char *outfits2, fpstate fpvar)
 		snprintf(dimen,100," (%ld", naxes[0]);
 		len =strlen(dimen);
 		for (ii = 1; ii < naxis; ii++) {
-                    if (len < 100)
+                    if (len < 99)
 		       snprintf(dimen+len,100-len,",%ld", naxes[ii]);
 		    len =strlen(dimen);
 		}
-		strcat(dimen, ")");
+                if (strlen(dimen)<99)
+		   strcat(dimen, ")");
 		printf("%-12s",dimen);
 
 		fits_get_hduaddr(inputfptr, &headstart, &datastart, &dataend, &stat);

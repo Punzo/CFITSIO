@@ -236,7 +236,12 @@ int ffpky( fitsfile *fptr,     /* I - FITS file pointer        */
     }
     else if (datatype == TULONG)
     {
-        ffpkyg(fptr, keyname, (double) *(unsigned long *) value, 0,
+        ffpkyuj(fptr, keyname, (ULONGLONG) *(unsigned long *) value,
+               comm, status);
+    }
+    else if (datatype == TULONGLONG)
+    {
+        ffpkyuj(fptr, keyname, (ULONGLONG) *(ULONGLONG *) value,
                comm, status);
     }
     else if (datatype == TLONG)
@@ -611,6 +616,29 @@ int ffpkyj( fitsfile *fptr,     /* I - FITS file pointer        */
     return(*status);
 }
 /*--------------------------------------------------------------------------*/
+int ffpkyuj( fitsfile *fptr,     /* I - FITS file pointer        */
+            const char *keyname,/* I - name of keyword to write */
+            ULONGLONG value,     /* I - keyword value            */
+            const char *comm,   /* I - keyword comment          */
+            int  *status)       /* IO - error status            */
+/*
+  Write (put) the keyword, value and comment into the FITS header.
+  Writes an integer keyword value.
+*/
+{
+    char valstring[FLEN_VALUE];
+    char card[FLEN_CARD];
+
+    if (*status > 0)           /* inherit input status value if > 0 */
+        return(*status);
+
+    ffu2c(value, valstring, status);   /* convert to formatted string */
+    ffmkky(keyname, valstring, comm, card, status);  /* construct the keyword*/
+    ffprec(fptr, card, status);  /* write the keyword*/
+
+    return(*status);
+}
+/*--------------------------------------------------------------------------*/
 int ffpkyf( fitsfile *fptr,      /* I - FITS file pointer                   */
             const char  *keyname,/* I - name of keyword to write            */
             float value,         /* I - keyword value                       */
@@ -724,9 +752,19 @@ int ffpkyc( fitsfile *fptr,      /* I - FITS file pointer                   */
 
     strcpy(valstring, "(" );
     ffr2e(value[0], decim, tmpstring, status); /* convert to string */
+    if (strlen(valstring)+strlen(tmpstring)+2 > FLEN_VALUE-1)
+    {
+       ffpmsg("Error converting complex to string (ffpkyc)");
+       return(*status=BAD_F2C);
+    }
     strcat(valstring, tmpstring);
     strcat(valstring, ", ");
     ffr2e(value[1], decim, tmpstring, status); /* convert to string */
+    if (strlen(valstring)+strlen(tmpstring)+1 > FLEN_VALUE-1)
+    {
+       ffpmsg("Error converting complex to string (ffpkyc)");
+       return(*status=BAD_F2C);
+    }
     strcat(valstring, tmpstring);
     strcat(valstring, ")");
 
@@ -755,9 +793,19 @@ int ffpkym( fitsfile *fptr,      /* I - FITS file pointer                   */
 
     strcpy(valstring, "(" );
     ffd2e(value[0], decim, tmpstring, status); /* convert to string */
+    if (strlen(valstring)+strlen(tmpstring)+2 > FLEN_VALUE-1)
+    {
+       ffpmsg("Error converting complex to string (ffpkym)");
+       return(*status=BAD_F2C);
+    }
     strcat(valstring, tmpstring);
     strcat(valstring, ", ");
     ffd2e(value[1], decim, tmpstring, status); /* convert to string */
+    if (strlen(valstring)+strlen(tmpstring)+1 > FLEN_VALUE-1)
+    {
+       ffpmsg("Error converting complex to string (ffpkym)");
+       return(*status=BAD_F2C);
+    }
     strcat(valstring, tmpstring);
     strcat(valstring, ")");
 
@@ -786,9 +834,19 @@ int ffpkfc( fitsfile *fptr,      /* I - FITS file pointer                   */
 
     strcpy(valstring, "(" );
     ffr2f(value[0], decim, tmpstring, status); /* convert to string */
+    if (strlen(valstring)+strlen(tmpstring)+2 > FLEN_VALUE-1)
+    {
+       ffpmsg("Error converting complex to string (ffpkfc)");
+       return(*status=BAD_F2C);
+    }
     strcat(valstring, tmpstring);
     strcat(valstring, ", ");
     ffr2f(value[1], decim, tmpstring, status); /* convert to string */
+    if (strlen(valstring)+strlen(tmpstring)+1 > FLEN_VALUE-1)
+    {
+       ffpmsg("Error converting complex to string (ffpkfc)");
+       return(*status=BAD_F2C);
+    }
     strcat(valstring, tmpstring);
     strcat(valstring, ")");
 
@@ -817,9 +875,19 @@ int ffpkfm( fitsfile *fptr,      /* I - FITS file pointer                   */
 
     strcpy(valstring, "(" );
     ffd2f(value[0], decim, tmpstring, status); /* convert to string */
+    if (strlen(valstring)+strlen(tmpstring)+2 > FLEN_VALUE-1)
+    {
+       ffpmsg("Error converting complex to string (ffpkfm)");
+       return(*status=BAD_F2C);
+    }
     strcat(valstring, tmpstring);
     strcat(valstring, ", ");
     ffd2f(value[1], decim, tmpstring, status); /* convert to string */
+    if (strlen(valstring)+strlen(tmpstring)+1 > FLEN_VALUE-1)
+    {
+       ffpmsg("Error converting complex to string (ffpkfm)");
+       return(*status=BAD_F2C);
+    }
     strcat(valstring, tmpstring);
     strcat(valstring, ")");
 
@@ -858,6 +926,11 @@ int ffpkyt( fitsfile *fptr,      /* I - FITS file pointer        */
     ffd2f(fraction, 16, fstring, status);  /* convert to 16 decimal string */
 
     cptr = strchr(fstring, '.');    /* find the decimal point */
+    if (strlen(valstring)+strlen(cptr) > FLEN_VALUE-1)
+    {
+       ffpmsg("converted numerical string too long");
+       return(*status=BAD_F2C);
+    }
     strcat(valstring, cptr);    /* append the fraction to the integer */
 
     ffmkky(keyname, valstring, comm, card, status);  /* construct the keyword*/
@@ -1990,6 +2063,12 @@ int ffptdm( fitsfile *fptr, /* I - FITS file pointer                        */
         }
 
         snprintf(value, 80,"%ld", naxes[ii]);
+        /* This will either be followed by a ',' or ')'. */
+        if (strlen(tdimstr)+strlen(value)+1 > FLEN_VALUE-1)
+        {
+            ffpmsg("TDIM string too long (ffptdm)");
+            return(*status = BAD_TDIM);
+        }
         strcat(tdimstr, value);     /* append the axis size */
 
         totalpix *= naxes[ii];
@@ -2087,7 +2166,12 @@ int ffptdmll( fitsfile *fptr, /* I - FITS file pointer                      */
         /* sprintf is platform dependent ( %lld, %ld, %I64d )            */
 
         snprintf(value, 80, "%.0f", (double) naxes[ii]);
-
+        
+        if (strlen(tdimstr)+strlen(value)+1 > FLEN_VALUE-1)
+        {
+            ffpmsg("TDIM string too long (ffptdmll)");
+            return(*status = BAD_TDIM);
+        }
         strcat(tdimstr, value);     /* append the axis size */
 
         totalpix *= naxes[ii];
@@ -2201,6 +2285,7 @@ int ffphprll( fitsfile *fptr, /* I - FITS file pointer                        */
     int ii;
     long longbitpix, tnaxes[20];
     char name[FLEN_KEYWORD], comm[FLEN_COMMENT], message[FLEN_ERRMSG];
+    char card[FLEN_CARD];
 
     if (*status > 0)
         return(*status);
@@ -2247,6 +2332,8 @@ int ffphprll( fitsfile *fptr, /* I - FITS file pointer                        */
         longbitpix = SHORT_IMG;
     else if (longbitpix == ULONG_IMG)
         longbitpix = LONG_IMG;
+    else if (longbitpix == ULONGLONG_IMG)
+        longbitpix = LONGLONG_IMG;
     else if (longbitpix == SBYTE_IMG)
         longbitpix = BYTE_IMG;
 
@@ -2374,6 +2461,13 @@ int ffphprll( fitsfile *fptr, /* I - FITS file pointer                        */
         strcpy(comm, "default scaling factor");
         ffpkyg(fptr, "BSCALE", 1.0, 0, comm, status);
     }
+    else if (bitpix == ULONGLONG_IMG)
+    {
+        strcpy(card,"BZERO   =  9223372036854775808 / offset data range to that of unsigned long long");
+        ffprec(fptr, card, status);
+        strcpy(comm, "default scaling factor");
+        ffpkyg(fptr, "BSCALE", 1.0, 0, comm, status);
+    }
     else if (bitpix == SBYTE_IMG)
     {
         strcpy(comm, "offset data range to that of signed byte");
@@ -2464,6 +2558,12 @@ int ffphtb(fitsfile *fptr,  /* I - FITS file pointer                        */
         ffkeyn("TBCOL", ii + 1, name, status);
         ffpkyj(fptr, name, tbcol[ii], comm, status);
 
+        if (strlen(tform[ii]) > 29)
+        {
+          ffpmsg("Error: ASCII table TFORM code is too long (ffphtb)");
+          *status = BAD_TFORM;
+          break;
+        }
         strcpy(tfmt, tform[ii]);  /* required TFORMn keyword */
         ffupch(tfmt);
         ffkeyn("TFORM", ii + 1, name, status);
@@ -2513,7 +2613,8 @@ int ffphbn(fitsfile *fptr,  /* I - FITS file pointer                        */
     LONGLONG naxis1;
 
     char tfmt[30], name[FLEN_KEYWORD], comm[FLEN_COMMENT], extnm[FLEN_VALUE];
-    char *cptr;
+    char *cptr, card[FLEN_CARD];
+    tcolumn *colptr;
 
     if (*status > 0)
         return(*status);
@@ -2582,6 +2683,12 @@ int ffphbn(fitsfile *fptr,  /* I - FITS file pointer                        */
           ffpkys(fptr, name, ttype[ii], comm, status);
         }
 
+        if (strlen(tform[ii]) > 29)
+        {
+          ffpmsg("Error: BIN table TFORM code is too long (ffphbn)");
+          *status = BAD_TFORM;
+          break;
+        }
         strcpy(tfmt, tform[ii]);  /* required TFORMn keyword */
         ffupch(tfmt);
 
@@ -2629,6 +2736,8 @@ int ffphbn(fitsfile *fptr,  /* I - FITS file pointer                        */
            strcat(comm, ": 8-byte INTEGER");
         else if (datatype == TULONG)
            strcat(comm, ": 4-byte INTEGER");
+        else if (datatype == TULONGLONG)
+           strcat(comm, ": 8-byte INTEGER");
         else if (datatype == TFLOAT)
            strcat(comm, ": 4-byte REAL");
         else if (datatype == TDOUBLE)
@@ -2695,6 +2804,27 @@ int ffphbn(fitsfile *fptr,  /* I - FITS file pointer                        */
            strcpy(comm, "offset for unsigned integers");
 
            ffpkyg(fptr, name, 2147483648., 0, comm, status);
+
+           ffkeyn("TSCAL", ii + 1, name, status);
+           strcpy(comm, "data are not scaled");
+           ffpkyg(fptr, name, 1., 0, comm, status);
+        }
+        else if (abs(datatype) == TULONGLONG) 
+        {	   
+           /* Replace the 'W' with an 'K' in the TFORMn code */
+           cptr = tfmt;
+           while (*cptr != 'W') 
+              cptr++;
+
+           *cptr = 'K';
+           ffpkys(fptr, name, tfmt, comm, status);
+
+           /* write the TZEROn and TSCALn keywords */
+           ffkeyn("TZERO", ii + 1, card, status);
+           strcat(card, "     ");  /* make sure name is >= 8 chars long */
+           *(card+8) = '\0';
+	   strcat(card, "=  9223372036854775808 / offset for unsigned integers");
+	   fits_write_record(fptr, card, status);
 
            ffkeyn("TSCAL", ii + 1, name, status);
            strcpy(comm, "data are not scaled");
@@ -2821,6 +2951,34 @@ int ffi2c(LONGLONG ival,  /* I - value to be converted to a string */
     return(*status);
 }
 /*--------------------------------------------------------------------------*/
+int ffu2c(ULONGLONG ival,  /* I - value to be converted to a string */
+          char *cval,     /* O - character string representation of the value */
+          int *status)    /* IO - error status */
+/*
+  convert  value to a null-terminated formatted string.
+*/
+{
+    if (*status > 0)           /* inherit input status value if > 0 */
+        return(*status);
+
+    cval[0] = '\0';
+
+#if defined(_MSC_VER)
+    /* Microsoft Visual C++ 6.0 uses '%I64d' syntax  for 8-byte integers */
+    if (sprintf(cval, "%I64u", ival) < 0)
+
+#elif (USE_LL_SUFFIX == 1)
+    if (sprintf(cval, "%llu", ival) < 0)
+#else
+    if (sprintf(cval, "%lu", ival) < 0)
+#endif
+    {
+        ffpmsg("Error in ffu2c converting integer to string");
+        *status = BAD_I2C;
+    }
+    return(*status);
+}
+/*--------------------------------------------------------------------------*/
 int ffl2c(int lval,    /* I - value to be converted to a string */
           char *cval,  /* O - character string representation of the value */
           int *status) /* IO - error status ) */
@@ -2915,7 +3073,7 @@ int ffr2f(float fval,   /* I - value to be converted to a string */
         return(*status = BAD_DECIM);
     }
 
-    if (sprintf(cval, "%.*f", decim, fval) < 0)
+    if (snprintf(cval, FLEN_VALUE,"%.*f", decim, fval) < 0)
     {
         ffpmsg("Error in ffr2f converting float to string");
         *status = BAD_F2C;
@@ -2951,7 +3109,7 @@ int ffr2e(float fval,  /* I - value to be converted to a string */
 
     if (decim < 0)
     {   /* use G format if decim is negative */
-        if ( sprintf(cval, "%.*G", -decim, fval) < 0)
+        if ( snprintf(cval, FLEN_VALUE,"%.*G", -decim, fval) < 0)
         {
             ffpmsg("Error in ffr2e converting float to string");
             *status = BAD_F2C;
@@ -2962,7 +3120,7 @@ int ffr2e(float fval,  /* I - value to be converted to a string */
             if ( !strchr(cval, '.') && strchr(cval,'E') )
             {
                 /* reformat value with a decimal point and single zero */
-                if ( sprintf(cval, "%.1E", fval) < 0)
+                if ( snprintf(cval, FLEN_VALUE,"%.1E", fval) < 0)
                 {
                     ffpmsg("Error in ffr2e converting float to string");
                     *status = BAD_F2C;
@@ -2974,7 +3132,7 @@ int ffr2e(float fval,  /* I - value to be converted to a string */
     }
     else
     {
-        if ( sprintf(cval, "%.*E", decim, fval) < 0)
+        if ( snprintf(cval, FLEN_VALUE,"%.*E", decim, fval) < 0)
         {
             ffpmsg("Error in ffr2e converting float to string");
             *status = BAD_F2C;
@@ -2992,7 +3150,7 @@ int ffr2e(float fval,  /* I - value to be converted to a string */
             ffpmsg("Error in ffr2e: float value is a NaN or INDEF");
             *status = BAD_F2C;
         }
-        else if ( !strchr(cval, '.') && !strchr(cval,'E') )
+        else if ( !strchr(cval, '.') && !strchr(cval,'E') && strlen(cval) < FLEN_VALUE-1 )
         {
             /* add decimal point if necessary to distinquish from integer */
             strcat(cval, ".");
@@ -3023,7 +3181,7 @@ int ffd2f(double dval,  /* I - value to be converted to a string */
         return(*status = BAD_DECIM);
     }
 
-    if (sprintf(cval, "%.*f", decim, dval) < 0)
+    if (snprintf(cval, FLEN_VALUE,"%.*f", decim, dval) < 0)
     {
         ffpmsg("Error in ffd2f converting double to string");
         *status = BAD_F2C;
@@ -3059,7 +3217,7 @@ int ffd2e(double dval,  /* I - value to be converted to a string */
 
     if (decim < 0)
     {   /* use G format if decim is negative */
-        if ( sprintf(cval, "%.*G", -decim, dval) < 0)
+        if ( snprintf(cval, FLEN_VALUE,"%.*G", -decim, dval) < 0)
         {
             ffpmsg("Error in ffd2e converting float to string");
             *status = BAD_F2C;
@@ -3070,7 +3228,7 @@ int ffd2e(double dval,  /* I - value to be converted to a string */
             if ( !strchr(cval, '.') && strchr(cval,'E') )
             {
                 /* reformat value with a decimal point and single zero */
-                if ( sprintf(cval, "%.1E", dval) < 0)
+                if ( snprintf(cval, FLEN_VALUE,"%.1E", dval) < 0)
                 {
                     ffpmsg("Error in ffd2e converting float to string");
                     *status = BAD_F2C;
@@ -3082,7 +3240,7 @@ int ffd2e(double dval,  /* I - value to be converted to a string */
     }
     else
     {
-        if ( sprintf(cval, "%.*E", decim, dval) < 0)
+        if ( snprintf(cval, FLEN_VALUE,"%.*E", decim, dval) < 0)
         {
             ffpmsg("Error in ffd2e converting float to string");
             *status = BAD_F2C;
@@ -3100,7 +3258,7 @@ int ffd2e(double dval,  /* I - value to be converted to a string */
             ffpmsg("Error in ffd2e: double value is a NaN or INDEF");
             *status = BAD_F2C;
         }
-        else if ( !strchr(cval, '.') && !strchr(cval,'E') )
+        else if ( !strchr(cval, '.') && !strchr(cval,'E') && strlen(cval) < FLEN_VALUE-1)
         {
             /* add decimal point if necessary to distinquish from integer */
             strcat(cval, ".");
